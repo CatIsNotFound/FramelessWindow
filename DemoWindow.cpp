@@ -24,6 +24,5 @@ void DemoWindow::closeEvent(QCloseEvent *event) {
 
 void DemoWindow::resizeEvent(QResizeEvent *event) {
     FramelessWidget::resizeEvent(event);
-//    qDebug() << "Resized: " << size();
-//    qDebug() << "A_Size: " << windowSize();
+    ui->verticalLayoutWidget->setGeometry(0, 0, width() - padding() * 2, height() - padding() * 2);
 }

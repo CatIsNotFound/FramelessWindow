@@ -14,10 +14,10 @@ FramelessWidget::FramelessWidget(QWidget *parent) :
 
     mouseEventFilter = new MouseEventFilter();
     connect(mouseEventFilter, &MouseEventFilter::onMouseMovingOnWidget, [&](const int x, const int y, const QString& obj_name) {
-        if (obj_name == "root_widget" || obj_name == "title_widget") {
-            setCursor(Qt::ArrowCursor);
-            qDebug() << "CH";
-        }
+//        if (obj_name == "root_widget" || obj_name == "title_widget") {
+//            setCursor(Qt::ArrowCursor);
+//            qDebug() << "CH";
+//        }
     });
 
     ui->verticalLayout->setContentsMargins(4, 4, 4, 4);
@@ -72,18 +72,59 @@ void FramelessWidget::resizeEvent(QResizeEvent *event) {
 
 void FramelessWidget::mousePressEvent(QMouseEvent *event) {
     if (event->button() == Qt::LeftButton && windowState() != Qt::WindowMaximized) {
-        is_moved = true;
         cur = QCursor::pos();
         win_pos = pos();
-        setCursor(Qt::SizeAllCursor);
+        cur_in_win_pos = event->pos();
+        if (cur_in_win_pos.x() < padding() && cur_in_win_pos.y() < padding()) direction = Direction::NorthWest;
+        else if (cur_in_win_pos.x() < padding() && cur_in_win_pos.y() > height() - padding()) direction = Direction::SouthWest;
+        else if (cur_in_win_pos.x() > width() - padding() && cur_in_win_pos.y() < padding()) direction = Direction::NorthEast;
+        else if (cur_in_win_pos.x() > width() - padding() && cur_in_win_pos.y() > height() - padding()) direction = Direction::SouthEast;
+        else if (cur_in_win_pos.x() < padding()) direction = Direction::West;
+        else if (cur_in_win_pos.x() > width() - padding()) direction = Direction::East;
+        else if (cur_in_win_pos.y() < padding()) direction = Direction::North;
+        else if (cur_in_win_pos.y() > height() - padding()) direction = Direction::South;
+        else direction = Direction::None;
+        qDebug() << direction;
+        if (direction == Direction::None) {
+            is_moved = true;
+            setCursor(Qt::SizeAllCursor);
+        } else {
+            is_resizing = true;
+            ori_win_width = width();
+            ori_win_height = height();
+
+        }
     }
 }
 
 void FramelessWidget::mouseMoveEvent(QMouseEvent *event) {
+    QPoint new_cur_pos = QCursor::pos();
     if (is_moved) {
-        QPoint new_cur_pos = QCursor::pos();
         QPoint new_win_pos = win_pos + new_cur_pos - cur;
         move(new_win_pos);
+    } else if (is_resizing) {
+        QPoint pt = event->pos();
+        QPoint ori = {ori_win_width, ori_win_height};
+        QPoint delta = new_cur_pos - cur;
+        if (direction == Direction::NorthWest) { // NW
+            setGeometry(win_pos.x() + delta.x(), win_pos.y() + delta.y(), ori_win_width - delta.x(), ori_win_height - delta.y());
+        } else if (direction == Direction::SouthWest) { // SW
+            setGeometry(win_pos.x() + delta.x(), win_pos.y(), ori_win_width - delta.x(), ori_win_height + delta.y());
+        } else if (direction == Direction::NorthEast) { // NE
+            setGeometry(win_pos.x(), win_pos.y() + delta.y(), ori_win_width + delta.x(), ori_win_height - delta.y());
+        } else if (direction == Direction::SouthEast) { // SE
+            setGeometry(win_pos.x(), win_pos.y(), ori_win_width + delta.x(), ori_win_height + delta.y());
+        } else if (direction == Direction::East) { // E
+            resize(ori_win_width + delta.x(), height());
+        } else if (direction == Direction::South) { // S
+            resize(width(), ori_win_height + delta.y());
+        } else if (direction == Direction::West) { // W
+            setGeometry(win_pos.x() + delta.x(), win_pos.y(), ori_win_width - delta.x(), ori_win_height);
+        } else if (direction == Direction::North) { // N
+            setGeometry(win_pos.x(), win_pos.y() + delta.y(), ori_win_width, ori_win_height - delta.y());
+        }
+        qDebug() << "Size: " << size();
+        qDebug() << "Delta: " << delta;
     } else {
         QPoint pt = event->pos();
         if ((pt.x() < padding() && pt.y() < padding()) ||
@@ -100,7 +141,6 @@ void FramelessWidget::mouseMoveEvent(QMouseEvent *event) {
             setCursor(Qt::ArrowCursor);
         }
     }
-
 }
 
 void FramelessWidget::mouseReleaseEvent(QMouseEvent *event) {
@@ -111,6 +151,12 @@ void FramelessWidget::mouseReleaseEvent(QMouseEvent *event) {
             if (is_animation_enabled) playMoveWindowAnimation();
             else move(x(), 0 - padding());
         }
+    }
+    if (is_resizing) {
+        is_resizing = false;
+        // setCursor(Qt::ArrowCursor);
+        win_width = width(); win_height = height();
+        // direction = Direction::None;
     }
 }
 
@@ -140,10 +186,10 @@ void FramelessWidget::showEvent(QShowEvent *event) {
     ui->root_widget->installEventFilter(mouseEventFilter);
     ui->title_widget->installEventFilter(mouseEventFilter);
     // qDebug() << "Insert Widget Address: " << ui->verticalLayout->itemAt(2)->widget()->objectName();
-//    if (ui->verticalLayout->count() > 2) {
-//        ui->verticalLayout->itemAt(2)->widget()->setMouseTracking(is_resizable);
-//        ui->verticalLayout->itemAt(2)->widget()->installEventFilter(mouseEventFilter);
-//    }
+    if (ui->verticalLayout->count() > 2) {
+        ui->verticalLayout->itemAt(2)->widget()->setMouseTracking(is_resizable);
+        ui->verticalLayout->itemAt(2)->widget()->installEventFilter(mouseEventFilter);
+    }
     if (!is_once) return;
     move(0, 0);
     if (is_animation_enabled) {
@@ -156,7 +202,7 @@ void FramelessWidget::showEvent(QShowEvent *event) {
         op_animation->setEasingCurve(QEasingCurve::OutCubic);
 
         int origin_width = width(), origin_height = height();
-        double scale = 0.7;
+        double scale = 0.8;
         int st_width = origin_width * scale, st_height = origin_height * scale;
         QPropertyAnimation *sz_animation = new QPropertyAnimation(this, "size", this);
         sz_animation->setStartValue(QSize(st_width, st_height));
@@ -330,7 +376,7 @@ void FramelessWidget::closeWindow() {
         op_animation->setEasingCurve(QEasingCurve::OutCubic);
 
         int origin_width = width(), origin_height = height();
-        double scale = 0.7;
+        double scale = 0.8;
         int st_width = origin_width * scale, st_height = origin_height * scale;
         QPropertyAnimation *sz_animation = new QPropertyAnimation(this, "size", this);
         sz_animation->setStartValue(QSize(origin_width, origin_height));
@@ -361,6 +407,8 @@ MouseEventFilter::MouseEventFilter(QObject *parent) : QObject(parent) {}
 
 bool MouseEventFilter::eventFilter(QObject *watched, QEvent *event) {
     if (event->type() == QEvent::MouseMove) {
+        event->ignore();
+
         auto mouse_event = dynamic_cast<QMouseEvent*>(event);
         emit onMouseMovingOnWidget(mouse_event->pos().x(), mouse_event->pos().y(), watched->objectName());
     }

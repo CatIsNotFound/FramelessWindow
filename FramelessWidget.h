@@ -83,18 +83,33 @@ public slots:
     void closeWindow();
 
 private:
+    enum Direction {
+        None,
+        NorthWest,
+        NorthEast,
+        SouthWest,
+        SouthEast,
+        North,
+        South,
+        West,
+        East
+    };
     Ui::FramelessWidget *ui;
     bool is_moved{false}, has_shadow{false};
     QPoint cur;
     QPoint win_pos;
+    QPoint cur_in_win_pos;
     int root_padding{0}, shadow_size{0};
     int win_width, win_height;
+    int ori_win_width, ori_win_height;
     QColor shadow_color;
     QPointer<QGraphicsDropShadowEffect> win_shadow;
     bool is_once{true};
     bool is_closed{false};
     bool is_resizable{false};
+    bool is_resizing{false};
     bool is_animation_enabled{true};
+    Direction direction;
     QMenu* app_menu;
     QPointer<QAction> act_min, act_max, act_close;
     MouseEventFilter* mouseEventFilter;
